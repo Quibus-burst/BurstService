@@ -1,9 +1,8 @@
-﻿Imports System.ServiceProcess
+Imports System.ServiceProcess
 Imports System.ComponentModel
 Imports System.Configuration.Install
 
-
-<RunInstaller(True)> Public Class prjInstaller
+<RunInstaller(True)> Public Class BurstServiceInstaller
     Inherits Installer
 
     Public Sub New()
@@ -13,7 +12,6 @@ Imports System.Configuration.Install
 
     Friend WithEvents process As ServiceProcessInstaller
     Friend WithEvents serviceAdmin As ServiceInstaller
-    Private components As Container
 
     <DebuggerStepThrough()> Private Sub InitializeComponent()
         Me.process = New ServiceProcessInstaller()
@@ -23,6 +21,7 @@ Imports System.Configuration.Install
         Me.serviceAdmin.StartType = ServiceStartMode.Automatic
         Me.serviceAdmin.ServiceName = "Burst Service"
         Me.serviceAdmin.DisplayName = "Burst Service"
+        Me.serviceAdmin.Description = "Burstcoin wallet service"
         Me.Installers.AddRange(New Installer() {Me.process, Me.serviceAdmin})
     End Sub
 
