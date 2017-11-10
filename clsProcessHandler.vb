@@ -6,7 +6,7 @@ Imports System.Text
 
 
 Public Class clsProcessHandler
-
+    Private Settings As clsSettings
     'NRS Vars
     Private nrs As Process
     Private Startsignalfound As Boolean 'use to know if nrs has started 
@@ -17,7 +17,7 @@ Public Class clsProcessHandler
     'PipeVars
     Dim pipeServer As NamedPipeServerStream
     Private buffer(1023) As Byte
-
+    Private LastException As Date
     'Generics
     Private Enum CtrlTypes As UInteger
         CTRL_C_EVENT = 0
@@ -36,8 +36,11 @@ Public Class clsProcessHandler
 
 #Region " Main Functions "
     Sub New()
-        BaseDir = Environment.CurrentDirectory
+        BaseDir = AppDomain.CurrentDomain.BaseDirectory
         If Not BaseDir.EndsWith("\") Then BaseDir &= "\"
+        Settings = New clsSettings
+        Settings.LoadSettings()
+        LastException = Now
     End Sub
     Public Enum AppNames As Integer
         JavaInstalled = 2
@@ -45,20 +48,17 @@ Public Class clsProcessHandler
     End Enum
     Public Sub Start()
         ShouldStop = False
-        ReadSettings()
-        Dim trd As Thread
-        PipeServerStart()
 
+        Dim trd As Thread
+        '   PipeServerStart() no need yet
         trd = New Thread(AddressOf NRSMonitor)
         trd.IsBackground = True
         trd.Start()
-
-
     End Sub
 
     Public Sub Quit()
         ShouldStop = True
-        'maybe a wait for quit here
+        ShutDown(15000, 10000)
     End Sub
 
 #End Region
@@ -80,68 +80,44 @@ Public Class clsProcessHandler
             If ShouldStop Then Exit Do
             Thread.Sleep(500) '2 times a second check is enough for now.
         Loop
-        If Not nrs.HasExited Then
-            ShutDown(25000, 15000)
-        End If
-
     End Sub
-    Private Sub ReadSettings()
-        Dim Settings() As String
-        Try
-            Settings = IO.File.ReadAllLines(BaseDir & "settings.ini")
-            Dim cell() As String = Nothing
-            For Each line As String In Settings
-                cell = Split(line, ",")
-                Select Case cell(0)
-                    Case "Cpulimit"
-                        cores = Val(cell(1))
-                    Case "JavaType"
-                        JavaType = Val(cell(1))
-                    Case "AutoStartService"
-                        Autostart = Val(cell(1))
-                End Select
-            Next
-        Catch ex As Exception
 
-        End Try
-    End Sub
     Private Sub StartNrs()
         nrs = New Process
         nrs.StartInfo.WorkingDirectory = BaseDir
-        nrs.StartInfo.Arguments = "-cp burst.jar;lib\*;conf;Fire nxt.Nxt"
+        nrs.StartInfo.Arguments = "-cp burst.jar;conf brs.Burst"
         nrs.StartInfo.UseShellExecute = False
-        nrs.StartInfo.RedirectStandardOutput = True
+
         nrs.StartInfo.RedirectStandardError = True
         nrs.StartInfo.CreateNoWindow = True
-        AddHandler nrs.OutputDataReceived, AddressOf OutputHandler
+
         AddHandler nrs.ErrorDataReceived, AddressOf ErroutHandler
         If JavaType = AppNames.JavaPortable Then
             nrs.StartInfo.FileName = BaseDir & "Java\bin\java.exe"
         Else
             nrs.StartInfo.FileName = "java"
         End If
-
         Try
             nrs.Start()
             If cores <> 0 Then nrs.ProcessorAffinity = CType(cores, IntPtr)
             nrs.BeginErrorReadLine()
-            nrs.BeginOutputReadLine()
+
         Catch ex As Exception
 
             Exit Sub
         End Try
     End Sub
 
-    Sub OutputHandler(sender As Object, e As DataReceivedEventArgs)
-        If Not String.IsNullOrEmpty(e.Data) Then
-            If e.Data.Contains("Started API server at") Then Startsignalfound = True
-            ConsoleBuffer &= e.Data & vbCrLf
-        End If
-    End Sub
     Sub ErroutHandler(sender As Object, e As DataReceivedEventArgs)
         If Not String.IsNullOrEmpty(e.Data) Then
             If e.Data.Contains("Started API server at") Then Startsignalfound = True
             ConsoleBuffer &= e.Data & vbCrLf
+            If Settings.WalletException And LastException.AddHours(1) < Now Then
+                If e.Data.StartsWith("Exception in") Or e.Data.StartsWith("java.lang.RuntimeException") Then
+                    LastException = Now
+                    ShutDown(15000, 10000) 'nrs monitor will start it again.
+                End If
+            End If
         End If
     End Sub
 

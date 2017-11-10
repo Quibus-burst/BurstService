@@ -29,9 +29,9 @@ Public Class main
 #End Region
 
     Protected Overrides Sub OnStart(ByVal args() As String)
-        'init prochandler
+
         ProcHandler = New clsProcessHandler
-        'start prochandler
+
         ProcHandler.Start()
 
     End Sub
