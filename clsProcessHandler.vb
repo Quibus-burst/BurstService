@@ -2,6 +2,7 @@ Imports System.Threading
 Imports System.IO.Pipes
 Imports System.Security.Principal
 Imports System.Text
+Imports System.Management
 '
 
 
@@ -11,7 +12,7 @@ Public Class clsProcessHandler
     Private nrs As Process
     Private Startsignalfound As Boolean 'use to know if nrs has started 
     Private ConsoleBuffer As String
-
+    Private Isrunning As Boolean
     'PipeVars
     Dim pipeServer As NamedPipeServerStream
     Private buffer(1023) As Byte
@@ -39,19 +40,23 @@ Public Class clsProcessHandler
         Settings = New clsSettings
         Settings.LoadSettings()
         LastException = Now
+        Isrunning = False
+        nrs = New Process
     End Sub
     Public Enum AppNames As Integer
         JavaInstalled = 2
         JavaPortable = 3
     End Enum
     Public Sub Start()
-        ShouldStop = False
+        If Not Isrunning Then
+            Isrunning = True
+            ShouldStop = False
+            Dim trd As Thread
+            trd = New Thread(AddressOf NRSMonitor)
+            trd.IsBackground = True
+            trd.Start()
 
-        Dim trd As Thread
-        '   PipeServerStart() no need yet
-        trd = New Thread(AddressOf NRSMonitor)
-        trd.IsBackground = True
-        trd.Start()
+        End If
     End Sub
 
     Public Sub Quit()
@@ -67,8 +72,9 @@ Public Class clsProcessHandler
     Private Sub NRSMonitor()
         'v1 of this asumes that we are in the same dir as launcher and burst.jar
         StartNrs()
+        Thread.Sleep(5000)
         Do
-            If nrs.HasExited Then
+            If Not IsBurstRunning() Then
                 If ShouldStop Then
                     Exit Do
                 Else
@@ -82,12 +88,12 @@ Public Class clsProcessHandler
 
     Private Sub StartNrs()
 
-        nrs = New Process
+
         nrs.StartInfo.WorkingDirectory = BaseDir
         nrs.StartInfo.Arguments = "-cp burst.jar;conf nxt.Nxt"
         nrs.StartInfo.UseShellExecute = False
 
-        nrs.StartInfo.RedirectStandardError = True
+        '   nrs.StartInfo.RedirectStandardError = True
         nrs.StartInfo.CreateNoWindow = True
 
         AddHandler nrs.ErrorDataReceived, AddressOf ErroutHandler
@@ -100,12 +106,13 @@ Public Class clsProcessHandler
             nrs.Start()
             Dim cores As Integer = (2 ^ Settings.Cpulimit) - 1
             If cores <> 0 Then nrs.ProcessorAffinity = CType(cores, IntPtr)
-            nrs.BeginErrorReadLine()
-
+            '  nrs.BeginErrorReadLine()
+            System.IO.File.AppendAllText(BaseDir & "\debugservice.txt", nrs.Id.ToString & vbCrLf)
         Catch ex As Exception
 
             Exit Sub
         End Try
+
     End Sub
 
     Sub ErroutHandler(sender As Object, e As DataReceivedEventArgs)
@@ -135,12 +142,34 @@ Public Class clsProcessHandler
         Catch ex As Exception
 
         End Try
+        Try
+            nrs.Kill() 'fixing no java cleanup.
+        Catch ex As Exception
+
+        End Try
     End Sub
     Private Function OnExit(CtrlType As CtrlTypes) As Boolean
         Return True
     End Function
 
+    Friend Function IsBurstRunning() As Boolean
 
+        Dim Ok As Boolean = True
+        Dim searcher As ManagementObjectSearcher
+        Dim cmdline As String = ""
+        Dim Msg As String = ""
+        Dim res As MsgBoxResult = Nothing
+        'Check if Java is running another burst.jar
+        searcher = New ManagementObjectSearcher("root\CIMV2", "SELECT * FROM Win32_Process WHERE Name='java.exe'")
+        For Each p As ManagementObject In searcher.[Get]()
+            cmdline = p("CommandLine")
+            If cmdline.ToLower.Contains("burst.jar") Then
+                Return True
+            End If
+        Next
+
+        Return False
+    End Function
 #End Region
 
 #Region " Pipe Server "

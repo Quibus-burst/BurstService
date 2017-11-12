@@ -118,6 +118,7 @@
     <Reference Include="System.Data">
       <Name>System.Data</Name>
     </Reference>
+    <Reference Include="System.Management" />
     <Reference Include="System.ServiceProcess">
       <Name>System.ServiceProcess</Name>
     </Reference>
