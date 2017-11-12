@@ -10,8 +10,6 @@ Public Class clsProcessHandler
     'NRS Vars
     Private nrs As Process
     Private Startsignalfound As Boolean 'use to know if nrs has started 
-    Private JavaType As Integer
-    Private cores As Integer
     Private ConsoleBuffer As String
 
     'PipeVars
@@ -83,6 +81,7 @@ Public Class clsProcessHandler
     End Sub
 
     Private Sub StartNrs()
+
         nrs = New Process
         nrs.StartInfo.WorkingDirectory = BaseDir
         nrs.StartInfo.Arguments = "-cp burst.jar;conf nxt.Nxt"
@@ -92,13 +91,14 @@ Public Class clsProcessHandler
         nrs.StartInfo.CreateNoWindow = True
 
         AddHandler nrs.ErrorDataReceived, AddressOf ErroutHandler
-        If JavaType = AppNames.JavaPortable Then
+        If Settings.JavaType = AppNames.JavaPortable Then
             nrs.StartInfo.FileName = BaseDir & "Java\bin\java.exe"
         Else
             nrs.StartInfo.FileName = "java"
         End If
         Try
             nrs.Start()
+            Dim cores As Integer = (2 ^ Settings.Cpulimit) - 1
             If cores <> 0 Then nrs.ProcessorAffinity = CType(cores, IntPtr)
             nrs.BeginErrorReadLine()
 
