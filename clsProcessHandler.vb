@@ -85,7 +85,7 @@ Public Class clsProcessHandler
     Private Sub StartNrs()
         nrs = New Process
         nrs.StartInfo.WorkingDirectory = BaseDir
-        nrs.StartInfo.Arguments = "-cp burst.jar;conf brs.Burst"
+        nrs.StartInfo.Arguments = "-cp burst.jar;conf nxt.Nxt"
         nrs.StartInfo.UseShellExecute = False
 
         nrs.StartInfo.RedirectStandardError = True
